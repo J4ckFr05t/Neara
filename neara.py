@@ -45,15 +45,26 @@ if uploaded_file:
 
                 for field in selected_fields:
                     value = str(row[field]).strip().lower()
+                    # Substring match first
+                    substring_match = None
+                    for master_key in normalized_master.keys():
+                        if master_key in value:
+                            substring_match = master_key
+                            break
+                    if substring_match:
+                        matched_value = normalized_master[substring_match]
+                        evidence = f"Field: {field} | Value: {value} | Substring Match: {matched_value}"
+                        local_stats[field]["matched"] += 1
+                        break
+                    # Fuzzy match fallback
                     best_match, score, _ = process.extractOne(
                         value,
                         normalized_master.keys(),
                         scorer=fuzz.token_sort_ratio
                     )
-
                     if score >= threshold:
                         matched_value = normalized_master[best_match]
-                        evidence = f"Field: {field} | Value: {value} | Match: {matched_value} | Score: {score}"
+                        evidence = f"Field: {field} | Value: {value} | Fuzzy Match: {matched_value} | Score: {score}"
                         local_stats[field]["matched"] += 1
                         break
                     else:
@@ -76,8 +87,11 @@ if uploaded_file:
 
             result_df = pd.concat([df, pd.DataFrame(match_results)], axis=1)
 
+            # Show only matched cases in Results
+            matched_only_df = result_df[result_df["Matched Value"] != "Not Found"]
+
             st.write("### Results with Fuzzy Matching")
-            st.dataframe(result_df)
+            st.dataframe(matched_only_df)
 
             st.download_button("Download Results", data=result_df.to_csv(index=False), file_name="fuzzy_matched_results.csv")
 
