@@ -16,6 +16,27 @@ if uploaded_file:
     st.write("### Preview of Uploaded Data")
     st.dataframe(df.head())
 
+    st.write("### Filter Uploaded Data (Optional)")
+    filter_field = st.selectbox("Select a field to filter on (optional)", [None] + df.columns.tolist())
+    filter_type = None
+    filter_value = None
+    filtered_df = df.copy()
+    if filter_field:
+        filter_type = st.radio(
+            "Filter type",
+            ("No filter", "Remove Null/Empty values", "Exact match")
+        )
+        if filter_type == "Remove Null/Empty values":
+            # Filter OUT Remove Null/Empty values
+            filtered_df = df[~(df[filter_field].isnull() | (df[filter_field].astype(str).str.strip() == ""))]
+        elif filter_type == "Exact match":
+            unique_values = sorted(df[filter_field].dropna().astype(str).unique())
+            filter_value = st.selectbox(f"Select value to exactly match in '{filter_field}'", [None] + unique_values)
+            if filter_value:
+                filtered_df = df[df[filter_field].astype(str) == filter_value]
+    st.write("### Preview of Filtered Data")
+    st.dataframe(filtered_df.head())
+
     st.write("### Enter Master List for Fuzzy Matching")
     user_master_list_input = st.text_area(
         "Enter one item per line to build your master list (e.g., countries, products, etc.)",
@@ -28,15 +49,15 @@ if uploaded_file:
     else:
         normalized_master = {c.lower(): c for c in master_list}
 
-        selected_fields = st.multiselect("Select fields to search for matches", df.columns.tolist())
+        selected_fields = st.multiselect("Select fields to search for matches", filtered_df.columns.tolist())
         threshold = st.slider("Matching threshold (0-100)", min_value=60, max_value=100, value=85)
 
         if st.button("Run Fuzzy Matching"):
-            match_results = [None] * len(df)
+            match_results = [None] * len(filtered_df)
             field_stats = defaultdict(lambda: {"matched": 0, "unmatched": 0})
 
             progress_bar = st.progress(0)
-            total_rows = len(df)
+            total_rows = len(filtered_df)
 
             def match_row(index, row):
                 matched_value = None
@@ -73,7 +94,7 @@ if uploaded_file:
                 return index, matched_value, evidence, local_stats
 
             with ThreadPoolExecutor() as executor:
-                futures = [executor.submit(match_row, idx, row) for idx, row in df.iterrows()]
+                futures = [executor.submit(match_row, idx, row) for idx, row in filtered_df.iterrows()]
                 for i, future in enumerate(as_completed(futures)):
                     index, matched_value, evidence, local_stats = future.result()
                     match_results[index] = {
@@ -85,7 +106,7 @@ if uploaded_file:
                         field_stats[field]["unmatched"] += local_stats[field]["unmatched"]
                     progress_bar.progress((i + 1) / total_rows)
 
-            result_df = pd.concat([df, pd.DataFrame(match_results)], axis=1)
+            result_df = pd.concat([filtered_df, pd.DataFrame(match_results)], axis=1)
 
             # Show only matched cases in Results
             matched_only_df = result_df[result_df["Matched Value"] != "Not Found"]
