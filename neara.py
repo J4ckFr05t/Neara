@@ -27,8 +27,17 @@ if uploaded_file:
             ("No filter", "Remove Null/Empty values", "Exact match")
         )
         if filter_type == "Remove Null/Empty values":
-            # Filter OUT Remove Null/Empty values
-            filtered_df = df[~(df[filter_field].isnull() | (df[filter_field].astype(str).str.strip() == ""))]
+            # Filter OUT Remove Null/Empty values and empty arrays (as string or list)
+            def is_null_or_empty(val):
+                if pd.isnull(val):
+                    return True
+                if isinstance(val, list) and len(val) == 0:
+                    return True
+                val_str = str(val).strip()
+                if val_str == "" or val_str == "[]":
+                    return True
+                return False
+            filtered_df = df[~df[filter_field].apply(is_null_or_empty)]
         elif filter_type == "Exact match":
             unique_values = sorted(df[filter_field].dropna().astype(str).unique())
             filter_value = st.selectbox(f"Select value to exactly match in '{filter_field}'", [None] + unique_values)
