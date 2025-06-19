@@ -44,7 +44,7 @@ if uploaded_file:
                 local_stats = defaultdict(lambda: {"matched": 0, "unmatched": 0})
 
                 for field in selected_fields:
-                    value = str(row[field])
+                    value = str(row[field]).strip().lower()
                     best_match, score, _ = process.extractOne(
                         value,
                         normalized_master.keys(),
